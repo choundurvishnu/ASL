@@ -1,0 +1,251 @@
+---
+title: "Untitled"
+author: "Vishnu"
+date: '`r Sys.Date()`'
+output:
+  html_document: default
+  word_document: default
+---
+
+Topic will be covered in Midterm 2
+Dear All,
+
+Here is the topic to be covered in Midterm 2:
+
+Section 5.1 Cross-Validation --- K fold cross Validation
+Section 6.1 Subset Selection --- Forward, Backward, Exhaustive
+Section 6.2 Shrinkage Methods --- Lasso, Ridge
+Please note that these methods build on concepts from Midterm 1. Midterm 2 will be comprehensive and will require a solid understanding of the material covered previously.
+
+Best of luck with your studies!
+
+```{r}
+data <- read.csv("C:\\Users\\choun\\Downloads\\bodyfat.csv")
+data
+```
+
+
+```{r}
+str(data)
+
+```
+```{r}
+summary(data)
+```
+````{r}
+dim(data)
+```
+```{r}
+sample(nrow(data),0.2*nrow(data))
+```
+```{r}
+0.2*345
+```
+```{r}
+### Train and test split
+testIndex <- sample(nrow(data),45)
+testIndex
+```
+```{r}
+data[c(1:10),]
+
+```
+```{r}
+data[,c(2,3,5,7)]
+```
+
+
+“BMI” as the response variable and "Age", "BMR.Kcal", "FatMass.Kg", "FM",
+"Height.cm", and "W.Kg" as input variables
+```{r}
+data1 <- data[, c("BMI", "Age", "BMR.Kcal", "FatMass.Kg", "FM", "Height.cm", "W.Kg")]
+data1
+
+```
+
+
+```{r}
+library(leaps)
+```
+```{r}
+regfit.full <-  regsubsets(BMI ~., data = data1[-testIndex,], nvmax=6)
+regfit.full
+```
+```{r}
+sum.full <- summary(regfit.full)
+sum.full
+```
+```{r}
+sum.full$adjr2
+```
+
+```{r}
+which.max(sum.full$adjr2)
+```
+```{r}
+coef(regfit.full,4)
+```
+```{r}
+sum.full$rsq[4]
+```
+
+Forward
+-------------------------
+
+```{r}
+regfit.fwd <- regsubsets(BMI ~ ., data = data1[-testIndex,], nvmax=6,method = "forward")
+regfit.fwd
+```
+```{r}
+forward_summary <- summary(regfit.fwd )
+forward_summary
+```
+```{r}
+n <- nrow(data1[-testIndex,])
+
+# Calculate AIC for each model
+aic_values <- sapply(1:length(forward_summary$rss), function(i) {
+  k <- forward_summary$cp[i] + 1 # Number of predictors + intercept
+  rss <- forward_summary$rss[i]
+  log_likelihood <- -n/2 * log(rss/n)
+  aic <- -2 * log_likelihood + 2 * k
+  return(aic)
+})
+aic_values
+```
+
+```{r}
+which.min(aic_values)
+```
+
+```{r}
+coef(regfit.fwd,4)
+```
+```{r}
+forward_summary$rsq[4]
+```
+
+Raw polynomials ---> raw = T
+Orthogonal Polynomial ----> raw = F
+
+```{r}
+train_data1 <- poly(as.matrix(data1[,-1]),degree = 2,raw = T)
+train_data1 <- cbind(train_data1,BMI=data1[,1])
+train_data1 <- as.data.frame(train_data1)
+train_data1
+
+```
+```{r}
+regfit.bwd <- regsubsets(BMI ~ .+Age*BMR.Kcal, data =data1[-testIndex,], nvmax=7,method = "backward")
+regfit.bwd
+```
+```{r}
+backward_summary <- summary(regfit.bwd )
+backward_summary
+```
+```{r}
+backward_summary$bic
+```
+```{r}
+which.min(backward_summary$bic)
+```
+
+```{r}
+coef(regfit.bwd,5)
+```
+
+```{r}
+backward_summary$rsq[5]
+```
+
+```{r}
+X <- poly(as.matrix(data1[,-1]),degree = 2,raw = F)
+y <- poly(as.matrix(data1[,1]),degree = 1,raw = F)
+X
+y
+```
+```{r}
+library(glmnet)
+```
+### Shrinkage Methods
+-- Lasso
+-- Ridge
+Alpha <- 1 Lasso
+Alpha <- 0 Ridge 
+```{r}
+cv.lasso <- cv.glmnet(X[-testIndex , ], y[-testIndex], alpha = 1, nfolds = 5)
+cv.lasso
+```
+```{r}
+bestlam.lasso <- cv.lasso$lambda.min
+bestlam.lasso
+```
+```{r}
+predictions <- predict(cv.lasso , s = bestlam.lasso ,newx = X[-testIndex, ])
+```
+
+```{r}
+actual <- y[-testIndex,]  
+mean_actual <- mean(actual)  
+rss <- sum((actual - predictions)^2)  
+tss <- sum((actual - mean_actual)^2)  
+r_squared <- 1 - (rss / tss)
+r_squared
+```
+
+```{r}
+cv.ridge <- cv.glmnet(X[-testIndex , ], y[-testIndex], alpha = 0, nfolds = 15)
+cv.ridge
+```
+```{r}
+bestlam.ridge <- cv.ridge$lambda.min
+bestlam.ridge
+```
+```{r}
+predictions <- predict(cv.ridge , s = bestlam.ridge ,newx = X[-testIndex, ])
+```
+
+```{r}
+actual <- y[-testIndex,]  
+mean_actual <- mean(actual)  
+rss <- sum((actual - predictions)^2)  
+tss <- sum((actual - mean_actual)^2)  
+r_squared <- 1 - (rss / tss)
+r_squared
+```
+
+### Predictions for Subset selection Methods using test cases
+
+```{r}
+test.mat <- model.matrix(BMI ~., data = data1[testIndex , ])
+coefi <- coef(regfit.full , id = 4)
+pred <- test.mat[, names(coefi)] %*% coefi
+pred
+
+```
+```{r}
+y1 <- data1$BMI
+actual <- y1[testIndex]
+mean_actual <- mean(actual)  
+rss <- sum((actual - pred)^2)  
+tss <- sum((actual - mean_actual)^2)  
+r_squared <- 1 - (rss / tss)
+r_squared
+
+```
+
+
+### Predictions for Shrikage Methods  using test cases
+```{r}
+predictions <- predict(cv.ridge , s = bestlam.ridge,newx= X[testIndex, ])
+
+```
+
+```{r}
+actual <- y[testIndex,]  
+mean_actual <- mean(actual)  
+rss <- sum((actual - predictions)^2)  
+tss <- sum((actual - mean_actual)^2)  
+r_squared <- 1 - (rss / tss)
+r_squared
+```
